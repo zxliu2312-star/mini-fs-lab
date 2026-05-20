@@ -54,7 +54,10 @@ public final class Main {
                 break;
             case "INFO":
                 if (parts.length == 2) {
-                    output.append(fileSystem.info(parts[1])).append(System.lineSeparator());
+                    Long size = fileSystem.info(parts[1]);
+                    if (size != null) {
+                        output.append(size).append(System.lineSeparator());
+                    }
                 }
                 break;
             default:

@@ -25,6 +25,10 @@ public final class FileSystem {
     }
 
     public void touch(String absPath, long size) {
+        if (size < 0L) {
+            return;
+        }
+
         PathUtil.PathTarget target = PathUtil.splitParentAndName(absPath);
         if (target == null) {
             return;
@@ -46,10 +50,10 @@ public final class FileSystem {
         return node.listOutput();
     }
 
-    public long info(String absPath) {
+    public Long info(String absPath) {
         Node node = resolve(absPath);
         if (node == null) {
-            return 0L;
+            return null;
         }
         return node.size(new SizeContext());
     }
