@@ -71,9 +71,8 @@ public final class FileSystem {
             Node resolved = node.follow();
             if (resolved instanceof DirectoryNode) {
                 return resolved.listOutput();
-            } else {
-                return Collections.singletonList(node.getName());
             }
+            return Collections.singletonList(node.getName());
         }
 
         return node.listOutput();
@@ -118,61 +117,31 @@ public final class FileSystem {
     private void findRecursive(Node node, String currentPath, String name,
             Set<Node> visitedDirs, List<String> results) {
         if (name.equals(node.getName())) {
-            String realPath = findRealPath(node);
-            if (realPath != null) {
-                results.add(realPath);
-            } else {
-                results.add(currentPath);
-            }
+            results.add(currentPath);
         }
 
         Node resolved = node.follow();
-
         if (!(resolved instanceof DirectoryNode)) {
             return;
         }
 
         DirectoryNode dir = (DirectoryNode) resolved;
-
         for (String childName : dir.listOutput()) {
             Node child = dir.getChild(childName);
-            if (child != null) {
-                String childPath = currentPath.equals("/") ? "/" + childName : currentPath + "/" + childName;
-                Node childResolved = child.follow();
+            if (child == null) {
+                continue;
+            }
 
-                if (childResolved instanceof DirectoryNode) {
-                    if (visitedDirs.contains(childResolved)) {
-                        continue;
-                    }
-                    visitedDirs.add(childResolved);
+            String childPath = currentPath.equals("/") ? "/" + childName : currentPath + "/" + childName;
+            Node childResolved = child.follow();
+            if (childResolved instanceof DirectoryNode) {
+                if (visitedDirs.contains(childResolved)) {
+                    continue;
                 }
-                findRecursive(child, childPath, name, visitedDirs, results);
+                visitedDirs.add(childResolved);
             }
+            findRecursive(child, childPath, name, visitedDirs, results);
         }
-    }
-
-    private String findRealPath(Node node) {
-        if (node == root) {
-            return "/";
-        }
-        return findRealPathRecursive(root, "", node);
-    }
-
-    private String findRealPathRecursive(DirectoryNode dir, String currentPath, Node target) {
-        for (String name : dir.listOutput()) {
-            Node child = dir.getChild(name);
-            if (child == target) {
-                return currentPath.equals("") ? "/" + name : currentPath + "/" + name;
-            }
-            if (child instanceof DirectoryNode) {
-                String result = findRealPathRecursive((DirectoryNode) child,
-                        currentPath.equals("") ? "/" + name : currentPath + "/" + name, target);
-                if (result != null) {
-                    return result;
-                }
-            }
-        }
-        return null;
     }
 
     public void rm(String absPath) {
@@ -196,8 +165,7 @@ public final class FileSystem {
             return;
         }
 
-        DirectoryNode asDir = node.asDirectory();
-        if (asDir != null && !asDir.isEmpty()) {
+        if (node instanceof DirectoryNode && !((DirectoryNode) node).isEmpty()) {
             return;
         }
 
