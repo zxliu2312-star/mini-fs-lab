@@ -9,48 +9,60 @@ public final class PathUtil {
     }
 
     public static boolean isValidAbsolutePath(String path) {
-        if (path == null || path.isEmpty() || path.charAt(0) != '/') {
-            return false;
-        }
-        if (path.contains("//")) {
-            return false;
-        }
-        if (path.length() > 1 && path.endsWith("/")) {
-            return false;
-        }
-        if ("/".equals(path)) {
-            return true;
-        }
-
-        String[] rawSegments = path.substring(1).split("/");
-        for (String segment : rawSegments) {
-            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) {
-                return false;
-            }
-        }
-        return true;
+        return path != null && !path.isEmpty() && path.charAt(0) == '/';
     }
 
-    public static List<String> segments(String path) {
+    public static String normalize(String path) {
         if (!isValidAbsolutePath(path)) {
-            return Collections.emptyList();
+            return null;
         }
         if ("/".equals(path)) {
+            return "/";
+        }
+
+        List<String> segments = new ArrayList<>();
+        String[] rawParts = path.substring(1).split("/");
+        
+        for (String part : rawParts) {
+            if (part.isEmpty() || ".".equals(part)) {
+                continue;
+            } else if ("..".equals(part)) {
+                if (!segments.isEmpty()) {
+                    segments.remove(segments.size() - 1);
+                }
+            } else {
+                segments.add(part);
+            }
+        }
+
+        if (segments.isEmpty()) {
+            return "/";
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (String segment : segments) {
+            result.append('/').append(segment);
+        }
+        return result.toString();
+    }
+
+    public static List<String> segments(String normalizedPath) {
+        if (!isValidAbsolutePath(normalizedPath) || "/".equals(normalizedPath)) {
             return Collections.emptyList();
         }
 
-        String[] rawSegments = path.substring(1).split("/");
+        String[] rawSegments = normalizedPath.substring(1).split("/");
         List<String> segments = new ArrayList<>(rawSegments.length);
         Collections.addAll(segments, rawSegments);
         return segments;
     }
 
-    public static PathTarget splitParentAndName(String path) {
-        if (!isValidAbsolutePath(path) || "/".equals(path)) {
+    public static PathTarget splitParentAndName(String normalizedPath) {
+        if (!isValidAbsolutePath(normalizedPath) || "/".equals(normalizedPath)) {
             return null;
         }
 
-        List<String> segments = segments(path);
+        List<String> segments = segments(normalizedPath);
         String name = segments.get(segments.size() - 1);
         if (segments.size() == 1) {
             return new PathTarget("/", name);

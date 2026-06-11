@@ -21,4 +21,8 @@ public abstract class Node {
     public abstract long size(SizeContext context);
 
     public abstract List<String> listOutput();
+
+    public Node follow() {
+        return this;
+    }
 }

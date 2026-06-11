@@ -15,7 +15,7 @@ public final class Main {
 
         String line;
         while ((line = reader.readLine()) != null) {
-            if (line.isBlank()) {
+            if (line.trim().isEmpty()) {
                 continue;
             }
             handleCommand(fileSystem, line, output);
@@ -58,6 +58,21 @@ public final class Main {
                     if (size != null) {
                         output.append(size).append(System.lineSeparator());
                     }
+                }
+                break;
+            case "FIND":
+                if (parts.length == 3) {
+                    appendLines(output, fileSystem.find(parts[1], parts[2]));
+                }
+                break;
+            case "RM":
+                if (parts.length == 2) {
+                    fileSystem.rm(parts[1]);
+                }
+                break;
+            case "LINK":
+                if (parts.length == 3) {
+                    fileSystem.link(parts[1], parts[2]);
                 }
                 break;
             default:

@@ -38,8 +38,27 @@ public final class DirectoryNode extends Node {
         children.put(childName, new FileNode(childName, fileSize));
     }
 
+    public void putLink(String childName, Node target) {
+        children.put(childName, new LinkNode(childName, target));
+    }
+
+    public boolean isEmpty() {
+        return children.isEmpty();
+    }
+
+    public Node removeChild(String childName) {
+        return children.remove(childName);
+    }
+
+    public boolean hasChild(String childName) {
+        return children.containsKey(childName);
+    }
+
     @Override
     public long size(SizeContext context) {
+        if (!context.markVisited(this)) {
+            return 0L;
+        }
         long total = 0L;
         for (Map.Entry<String, Node> entry : children.entrySet()) {
             total += entry.getValue().size(context);

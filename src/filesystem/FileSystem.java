@@ -2,16 +2,25 @@ package filesystem;
 
 import filesystem.context.SizeContext;
 import filesystem.node.DirectoryNode;
+import filesystem.node.LinkNode;
 import filesystem.node.Node;
 import filesystem.path.PathUtil;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class FileSystem {
     private final DirectoryNode root = new DirectoryNode("");
 
     public void mkdir(String absPath) {
-        PathUtil.PathTarget target = PathUtil.splitParentAndName(absPath);
+        String normalizedPath = PathUtil.normalize(absPath);
+        if (normalizedPath == null || "/".equals(normalizedPath)) {
+            return;
+        }
+
+        PathUtil.PathTarget target = PathUtil.splitParentAndName(normalizedPath);
         if (target == null) {
             return;
         }
@@ -29,7 +38,12 @@ public final class FileSystem {
             return;
         }
 
-        PathUtil.PathTarget target = PathUtil.splitParentAndName(absPath);
+        String normalizedPath = PathUtil.normalize(absPath);
+        if (normalizedPath == null || "/".equals(normalizedPath)) {
+            return;
+        }
+
+        PathUtil.PathTarget target = PathUtil.splitParentAndName(normalizedPath);
         if (target == null) {
             return;
         }
@@ -43,19 +57,177 @@ public final class FileSystem {
     }
 
     public List<String> ls(String absPath) {
-        Node node = resolve(absPath);
+        String normalizedPath = PathUtil.normalize(absPath);
+        if (normalizedPath == null) {
+            return Collections.emptyList();
+        }
+
+        Node node = resolve(normalizedPath);
         if (node == null) {
             return Collections.emptyList();
         }
+
+        if (node instanceof LinkNode) {
+            Node resolved = node.follow();
+            if (resolved instanceof DirectoryNode) {
+                return resolved.listOutput();
+            } else {
+                return Collections.singletonList(node.getName());
+            }
+        }
+
         return node.listOutput();
     }
 
     public Long info(String absPath) {
-        Node node = resolve(absPath);
+        String normalizedPath = PathUtil.normalize(absPath);
+        if (normalizedPath == null) {
+            return null;
+        }
+
+        Node node = resolve(normalizedPath);
         if (node == null) {
             return null;
         }
+
         return node.size(new SizeContext());
+    }
+
+    public List<String> find(String absPath, String name) {
+        String normalizedPath = PathUtil.normalize(absPath);
+        if (normalizedPath == null || name == null || name.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Node node = resolve(normalizedPath);
+        if (node == null) {
+            return Collections.emptyList();
+        }
+
+        List<String> results = new ArrayList<>();
+        Set<Node> visitedDirs = new HashSet<>();
+        Node resolvedStart = node.follow();
+        if (resolvedStart instanceof DirectoryNode) {
+            visitedDirs.add(resolvedStart);
+        }
+        findRecursive(node, normalizedPath, name, visitedDirs, results);
+        Collections.sort(results);
+        return results;
+    }
+
+    private void findRecursive(Node node, String currentPath, String name,
+            Set<Node> visitedDirs, List<String> results) {
+        if (name.equals(node.getName())) {
+            String realPath = findRealPath(node);
+            if (realPath != null) {
+                results.add(realPath);
+            } else {
+                results.add(currentPath);
+            }
+        }
+
+        Node resolved = node.follow();
+
+        if (!(resolved instanceof DirectoryNode)) {
+            return;
+        }
+
+        DirectoryNode dir = (DirectoryNode) resolved;
+
+        for (String childName : dir.listOutput()) {
+            Node child = dir.getChild(childName);
+            if (child != null) {
+                String childPath = currentPath.equals("/") ? "/" + childName : currentPath + "/" + childName;
+                Node childResolved = child.follow();
+
+                if (childResolved instanceof DirectoryNode) {
+                    if (visitedDirs.contains(childResolved)) {
+                        continue;
+                    }
+                    visitedDirs.add(childResolved);
+                }
+                findRecursive(child, childPath, name, visitedDirs, results);
+            }
+        }
+    }
+
+    private String findRealPath(Node node) {
+        if (node == root) {
+            return "/";
+        }
+        return findRealPathRecursive(root, "", node);
+    }
+
+    private String findRealPathRecursive(DirectoryNode dir, String currentPath, Node target) {
+        for (String name : dir.listOutput()) {
+            Node child = dir.getChild(name);
+            if (child == target) {
+                return currentPath.equals("") ? "/" + name : currentPath + "/" + name;
+            }
+            if (child instanceof DirectoryNode) {
+                String result = findRealPathRecursive((DirectoryNode) child,
+                        currentPath.equals("") ? "/" + name : currentPath + "/" + name, target);
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
+        return null;
+    }
+
+    public void rm(String absPath) {
+        String normalizedPath = PathUtil.normalize(absPath);
+        if (normalizedPath == null || "/".equals(normalizedPath)) {
+            return;
+        }
+
+        PathUtil.PathTarget target = PathUtil.splitParentAndName(normalizedPath);
+        if (target == null) {
+            return;
+        }
+
+        DirectoryNode parent = resolveDirectory(target.getParentPath());
+        if (parent == null) {
+            return;
+        }
+
+        Node node = parent.getChild(target.getName());
+        if (node == null) {
+            return;
+        }
+
+        DirectoryNode asDir = node.asDirectory();
+        if (asDir != null && !asDir.isEmpty()) {
+            return;
+        }
+
+        parent.removeChild(target.getName());
+    }
+
+    public void link(String srcAbsPath, String dstAbsPath) {
+        String srcNormalized = PathUtil.normalize(srcAbsPath);
+        String dstNormalized = PathUtil.normalize(dstAbsPath);
+
+        if (srcNormalized == null || dstNormalized == null || "/".equals(dstNormalized)) {
+            return;
+        }
+
+        Node srcNode = resolve(srcNormalized);
+        if (srcNode == null) {
+            return;
+        }
+
+        PathUtil.PathTarget dstTarget = PathUtil.splitParentAndName(dstNormalized);
+        if (dstTarget == null) {
+            return;
+        }
+
+        DirectoryNode parent = resolveDirectory(dstTarget.getParentPath());
+        if (parent == null) {
+            return;
+        }
+
+        parent.putLink(dstTarget.getName(), srcNode);
     }
 
     private Node resolve(String absPath) {
@@ -68,6 +240,7 @@ public final class FileSystem {
 
         Node current = root;
         for (String segment : PathUtil.segments(absPath)) {
+            current = current.follow();
             DirectoryNode directory = current.asDirectory();
             if (directory == null) {
                 return null;
@@ -82,6 +255,10 @@ public final class FileSystem {
 
     private DirectoryNode resolveDirectory(String absPath) {
         Node node = resolve(absPath);
-        return node == null ? null : node.asDirectory();
+        if (node == null) {
+            return null;
+        }
+        node = node.follow();
+        return node.asDirectory();
     }
 }

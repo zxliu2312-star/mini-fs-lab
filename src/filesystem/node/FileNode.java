@@ -14,6 +14,9 @@ public final class FileNode extends Node {
 
     @Override
     public long size(SizeContext context) {
+        if (!context.markVisited(this)) {
+            return 0L;
+        }
         return fileSize;
     }
 
