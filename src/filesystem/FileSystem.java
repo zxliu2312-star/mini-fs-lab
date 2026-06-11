@@ -104,24 +104,23 @@ public final class FileSystem {
         }
 
         List<String> results = new ArrayList<>();
-        Set<Node> visitedDirs = new HashSet<>();
-        Node resolvedStart = node.follow();
-        if (resolvedStart instanceof DirectoryNode) {
-            visitedDirs.add(resolvedStart);
-        }
-        findRecursive(node, normalizedPath, name, visitedDirs, results);
+        Set<Node> expandedDirs = new HashSet<>();
+        findRecursive(node, normalizedPath, name, expandedDirs, results);
         Collections.sort(results);
         return results;
     }
 
     private void findRecursive(Node node, String currentPath, String name,
-            Set<Node> visitedDirs, List<String> results) {
+            Set<Node> expandedDirs, List<String> results) {
         if (name.equals(node.getName())) {
             results.add(currentPath);
         }
 
         Node resolved = node.follow();
         if (!(resolved instanceof DirectoryNode)) {
+            return;
+        }
+        if (!expandedDirs.add(resolved)) {
             return;
         }
 
@@ -133,14 +132,7 @@ public final class FileSystem {
             }
 
             String childPath = currentPath.equals("/") ? "/" + childName : currentPath + "/" + childName;
-            Node childResolved = child.follow();
-            if (childResolved instanceof DirectoryNode) {
-                if (visitedDirs.contains(childResolved)) {
-                    continue;
-                }
-                visitedDirs.add(childResolved);
-            }
-            findRecursive(child, childPath, name, visitedDirs, results);
+            findRecursive(child, childPath, name, expandedDirs, results);
         }
     }
 
